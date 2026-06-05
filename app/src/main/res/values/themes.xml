@@ -1,0 +1,29 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Tema base para pantallas de autenticación (oscuro, glass) -->
+    <style name="Base.Theme.Practicas" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorPrimaryVariant">@color/brand_primary_dark</item>
+        <item name="colorOnPrimary">@color/text_white</item>
+        <item name="colorSecondary">@color/brand_secondary</item>
+        <item name="colorSurface">@color/surface_card</item>
+        <item name="android:colorBackground">@color/surface_background</item>
+    </style>
+
+    <style name="Theme.Practicas" parent="Base.Theme.Practicas" />
+
+    <!-- Splash: azul sólido -->
+    <style name="Theme.Practicas.Splash" parent="Theme.Practicas">
+        <item name="android:windowBackground">@color/liquid_bg</item>
+        <item name="android:statusBarColor">@color/liquid_bg</item>
+        <item name="android:navigationBarColor">@color/liquid_bg</item>
+    </style>
+
+    <!-- Auth screens: fondo oscuro transparente para dejar ver el LiquidBackgroundView -->
+    <style name="Theme.Practicas.Auth" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_primary_light</item>
+        <item name="colorOnPrimary">@color/text_white</item>
+        <item name="android:statusBarColor">@color/liquid_bg</item>
+        <item name="android:navigationBarColor">@color/liquid_bg</item>
+        <item name="android:windowBackground">@color/liquid_bg</item>
+    </style>
+</resources>

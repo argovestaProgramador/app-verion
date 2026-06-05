@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Fondo líquido shader (mismo que auth) -->
+    <com.verion.practicas.LiquidGLView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Overlay oscuro más suave que en login -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#28000000" />
+
+    <!-- Layout principal: fragmentos + nav bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Contenedor de fragmentos -->
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/fragmentContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@null" />
+
+        <!-- ── Nav bar futurista ─────────────────────── -->
+        <FrameLayout
+            android:id="@+id/navBar"
+            android:layout_width="match_parent"
+            android:layout_height="76dp"
+            android:background="#18000015">
+
+            <!-- Línea superior (borde glass) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#18FFFFFF" />
+
+            <!-- Indicador deslizante (se anima en código) -->
+            <View
+                android:id="@+id/navIndicator"
+                android:layout_width="56dp"
+                android:layout_height="3dp"
+                android:layout_gravity="top|start"
+                android:background="@drawable/bg_nav_indicator"
+                android:elevation="4dp" />
+
+            <!-- Tabs -->
+            <LinearLayout
+                android:id="@+id/tabContainer"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:weightSum="3">
+
+                <!-- Tab 1: Buscar -->
+                <LinearLayout
+                    android:id="@+id/tabBuscar"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingTop="4dp">
+
+                    <ImageView
+                        android:id="@+id/iconBuscar"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_nav_search"
+                        android:contentDescription="Buscar" />
+
+                    <TextView
+                        android:id="@+id/labelBuscar"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Buscar"
+                        android:textColor="@color/white"
+                        android:textSize="10sp" />
+
+                </LinearLayout>
+
+                <!-- Tab 2: Perfil -->
+                <LinearLayout
+                    android:id="@+id/tabPerfil"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingTop="4dp">
+
+                    <ImageView
+                        android:id="@+id/iconPerfil"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_nav_person"
+                        android:alpha="0.38"
+                        android:contentDescription="Perfil" />
+
+                    <TextView
+                        android:id="@+id/labelPerfil"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Perfil"
+                        android:textColor="@color/white"
+                        android:textSize="10sp"
+                        android:alpha="0.38" />
+
+                </LinearLayout>
+
+                <!-- Tab 3: Empresa -->
+                <LinearLayout
+                    android:id="@+id/tabEmpresa"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingTop="4dp">
+
+                    <ImageView
+                        android:id="@+id/iconEmpresa"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_nav_building"
+                        android:alpha="0.38"
+                        android:contentDescription="Empresa" />
+
+                    <TextView
+                        android:id="@+id/labelEmpresa"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Empresa"
+                        android:textColor="@color/white"
+                        android:textSize="10sp"
+                        android:alpha="0.38" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

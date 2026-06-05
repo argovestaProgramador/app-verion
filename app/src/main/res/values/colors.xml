@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Brand azul -->
+    <color name="brand_primary">#3B82F6</color>
+    <color name="brand_primary_dark">#1D4ED8</color>
+    <color name="brand_primary_light">#60A5FA</color>
+    <color name="brand_secondary">#34D399</color>
+    <color name="brand_accent">#A78BFA</color>
+
+    <!-- Fondo líquido (dark navy) -->
+    <color name="liquid_bg">#080D1A</color>
+
+    <!-- Glass card -->
+    <color name="glass_bg">#20FFFFFF</color>
+    <color name="glass_border">#30FFFFFF</color>
+    <color name="glass_input_bg">#15FFFFFF</color>
+    <color name="glass_input_border">#40FFFFFF</color>
+
+    <!-- Texto sobre fondos oscuros -->
+    <color name="text_white">#FFFFFFFF</color>
+    <color name="text_white_70">#B3FFFFFF</color>
+    <color name="text_white_50">#80FFFFFF</color>
+    <color name="text_white_30">#4DFFFFFF</color>
+
+    <!-- Texto sobre fondos claros (MainActivity) -->
+    <color name="text_primary">#0F172A</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="surface_background">#F0F4FF</color>
+    <color name="surface_card">#FFFFFF</color>
+    <color name="divider">#E2E8F0</color>
+
+    <!-- Error -->
+    <color name="error_red">#F87171</color>
+
+    <!-- Role cards -->
+    <color name="role_card_selected">#3B82F6</color>
+    <color name="role_card_border">#50FFFFFF</color>
+</resources>
