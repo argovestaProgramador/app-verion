@@ -116,8 +116,9 @@ fun EditProfileScreen(
     var locationLat  by remember { mutableStateOf<Double?>(null) }
     var locationLng  by remember { mutableStateOf<Double?>(null) }
     var locationAddr by remember { mutableStateOf("") }
-    var gettingLoc   by remember { mutableStateOf(false) }
-    var msgLocation  by remember { mutableStateOf<String?>(null) }
+
+    var todasHabilidades       by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var habilidadesSeleccionadas by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     var isSaving  by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
@@ -177,35 +178,6 @@ fun EditProfileScreen(
         }
     }
 
-    val locationPermLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { perms ->
-        if (perms.values.any { it }) {
-            scope.launch {
-                gettingLoc = true; msgLocation = null
-                val loc = fetchCurrentLocation(context)
-                if (loc != null) {
-                    val token = tokenManager.getAccessToken() ?: run { gettingLoc = false; return@launch }
-                    val body = org.json.JSONObject().apply { put("lat", loc.first); put("lng", loc.second) }
-                    val result = ApiClient.put("/api/perfil/ubicacion", body, token)
-                    if (result.success && result.data != null) {
-                        locationLat  = result.data.optDouble("lat")
-                        locationLng  = result.data.optDouble("lng")
-                        locationAddr = result.data.str("direccion")
-                        msgLocation  = "✓ Ubicación guardada"
-                    } else {
-                        msgLocation = "✗ ${result.error ?: "Error al guardar"}"
-                    }
-                } else {
-                    msgLocation = "No se pudo obtener la ubicación. Verifica que el GPS esté activado."
-                }
-                gettingLoc = false
-            }
-        } else {
-            msgLocation = "Se necesita permiso de ubicación para guardar"
-        }
-    }
-
     LaunchedEffect(Unit) {
         var token = tokenManager.getAccessToken()
         if (token != null) {
@@ -219,15 +191,15 @@ fun EditProfileScreen(
                 if (p != null) {
                     descripcion = p.str("descripcion")
                     emailProf   = p.str("email_profesional")
+                    locationLat   = if (p.isNull("lat")) null else p.optDouble("lat")
+                    locationLng   = if (p.isNull("lng")) null else p.optDouble("lng")
+                    locationAddr  = p.str("direccion")
                     if (rol == "TECNICO") {
                         nombre        = p.str("nombre_completo")
                         nivel         = p.str("nivel").takeIf { it.isNotBlank() } ?: "PRACTICANTE"
                         disponibili   = p.str("disponibilidad").takeIf { it.isNotBlank() } ?: "INMEDIATA"
                         fotoKey       = p.str("foto_key")
                         selectedCatId = p.str("categoria_principal_id")
-                        locationLat   = if (p.isNull("lat")) null else p.optDouble("lat")
-                        locationLng   = if (p.isNull("lng")) null else p.optDouble("lng")
-                        locationAddr  = p.str("direccion")
                         githubUrl     = p.str("github_url")
                         linkedinUrl   = p.str("linkedin_url")
                         instagramUrl  = p.str("instagram_url")
@@ -256,6 +228,20 @@ fun EditProfileScreen(
         }
         val cr = ApiClient.get("/api/categorias")
         if (cr.success) categorias = cr.dataArray.toObjectList()
+        val hr = ApiClient.get("/api/habilidades")
+        if (hr.success) todasHabilidades = hr.dataArray.toObjectList()
+        if (rol == "TECNICO" && token != null) {
+            val cvr = ApiClient.get("/api/cv/mio", token)
+            if (cvr.success) {
+                val arr = cvr.data?.optJSONArray("habilidades")
+                if (arr != null) {
+                    habilidadesSeleccionadas = (0 until arr.length())
+                        .mapNotNull { arr.optJSONObject(it)?.optString("habilidad_id") }
+                        .filter { it.isNotBlank() }
+                        .toSet()
+                }
+            }
+        }
         isLoading = false
     }
 
@@ -496,70 +482,14 @@ fun EditProfileScreen(
                         onSelect = { disponibili = it }
                     )
 
-                    SectionLabel("Mi ubicación")
-                    if (locationLat != null && locationLng != null) {
-                        LocationMapView(lat = locationLat!!, lng = locationLng!!)
-                        Spacer(Modifier.height(6.dp))
-                        if (locationAddr.isNotBlank()) {
-                            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
-                                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("📍", fontSize = 14.sp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(locationAddr, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                    }
-                    GlassCard(
-                        modifier = Modifier.fillMaxWidth().clickable(enabled = !gettingLoc) {
-                            val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                            val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                            if (hasFine || hasCoarse) {
-                                scope.launch {
-                                    gettingLoc = true; msgLocation = null
-                                    val loc = fetchCurrentLocation(context)
-                                    if (loc != null) {
-                                        val token = tokenManager.getAccessToken() ?: run { gettingLoc = false; return@launch }
-                                        val body = JSONObject().apply { put("lat", loc.first); put("lng", loc.second) }
-                                        val result = ApiClient.put("/api/perfil/ubicacion", body, token)
-                                        if (result.success && result.data != null) {
-                                            locationLat  = result.data.optDouble("lat")
-                                            locationLng  = result.data.optDouble("lng")
-                                            locationAddr = result.data.str("direccion")
-                                            msgLocation  = "✓ Ubicación guardada"
-                                        } else { msgLocation = "✗ ${result.error ?: "Error al guardar"}" }
-                                    } else {
-                                        msgLocation = "No se pudo obtener la ubicación. Activa el GPS."
-                                    }
-                                    gettingLoc = false
-                                }
-                            } else {
-                                locationPermLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-                            }
-                        },
-                        cornerRadius = 14.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (gettingLoc) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = BrandBlue, strokeWidth = 2.dp)
-                            } else {
-                                Text("📍", fontSize = 18.sp)
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                if (locationLat != null) "Actualizar mi ubicación GPS" else "Obtener mi ubicación GPS",
-                                color = if (gettingLoc) TextSecondary else Color.White,
-                                fontSize = 14.sp, fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                    msgLocation?.let { msg ->
-                        Text(msg, color = if (msg.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171), fontSize = 12.sp)
-                    }
+                    LocationSection(
+                        tokenManager     = tokenManager,
+                        label            = "Mi ubicación",
+                        buttonGetText    = "Obtener mi ubicación GPS",
+                        buttonUpdateText = "Actualizar mi ubicación GPS",
+                        lat = locationLat, lng = locationLng, addr = locationAddr,
+                        onSaved = { la, lo, ad -> locationLat = la; locationLng = lo; locationAddr = ad }
+                    )
 
                     SectionLabel("Redes sociales")
                     GlassField(githubUrl, { githubUrl = it }, "GitHub (https://github.com/...)", keyboardType = KeyboardType.Uri)
@@ -567,6 +497,54 @@ fun EditProfileScreen(
                     GlassField(instagramUrl, { instagramUrl = it }, "Instagram (https://instagram.com/...)", keyboardType = KeyboardType.Uri)
                     GlassField(xUrl, { xUrl = it }, "X / Twitter (https://x.com/...)", keyboardType = KeyboardType.Uri)
                     GlassField(whatsapp, { whatsapp = it }, "WhatsApp (+51 999 999 999)", keyboardType = KeyboardType.Phone)
+
+                    // ── Habilidades ───────────────────────
+                    if (todasHabilidades.isNotEmpty()) {
+                        SectionLabel("Mis habilidades")
+                        GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "Toca para seleccionar / deseleccionar",
+                                    color = TextSecondary, fontSize = 11.sp
+                                )
+                                todasHabilidades.chunked(3).forEach { rowItems ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        rowItems.forEach { hab ->
+                                            val habId = hab.str("id")
+                                            val selected = habilidadesSeleccionadas.contains(habId)
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(50.dp))
+                                                    .background(
+                                                        if (selected) BrandBlue.copy(alpha = 0.25f)
+                                                        else Color.White.copy(alpha = 0.06f)
+                                                    )
+                                                    .border(
+                                                        1.dp,
+                                                        if (selected) BrandBlue else Color.White.copy(alpha = 0.15f),
+                                                        RoundedCornerShape(50.dp)
+                                                    )
+                                                    .clickable {
+                                                        habilidadesSeleccionadas = if (selected)
+                                                            habilidadesSeleccionadas - habId
+                                                        else
+                                                            habilidadesSeleccionadas + habId
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    hab.str("nombre"),
+                                                    color = if (selected) BrandBlue else Color.White.copy(alpha = 0.55f),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // ── Proyectos ─────────────────────────
                     Spacer(Modifier.height(4.dp))
@@ -711,6 +689,15 @@ fun EditProfileScreen(
                     GlassField(instagramEmp, { instagramEmp = it }, "Instagram (https://instagram.com/...)", keyboardType = KeyboardType.Uri)
                     GlassField(facebookUrl, { facebookUrl = it }, "Facebook (https://facebook.com/...)", keyboardType = KeyboardType.Uri)
                     GlassField(whatsappEmp, { whatsappEmp = it }, "WhatsApp (+51 999 999 999)", keyboardType = KeyboardType.Phone)
+
+                    LocationSection(
+                        tokenManager     = tokenManager,
+                        label            = "Ubicación de la sede",
+                        buttonGetText    = "Obtener ubicación de la sede",
+                        buttonUpdateText = "Actualizar ubicación de la sede",
+                        lat = locationLat, lng = locationLng, addr = locationAddr,
+                        onSaved = { la, lo, ad -> locationLat = la; locationLng = lo; locationAddr = ad }
+                    )
                 }
 
                 saveMsg?.let { msg ->
@@ -757,6 +744,12 @@ fun EditProfileScreen(
                             if (!result.success && result.isUnauthorized) {
                                 val newToken = tokenManager.getRefreshToken()?.let { ApiClient.refreshToken(it) }
                                 if (newToken != null) { tokenManager.saveAccessToken(newToken); result = ApiClient.put(endpoint, body, newToken) }
+                            }
+                            if (result.success && rol == "TECNICO" && habilidadesSeleccionadas.isNotEmpty()) {
+                                val habBody = JSONObject().apply {
+                                    put("habilidad_ids", org.json.JSONArray(habilidadesSeleccionadas.toList()))
+                                }
+                                ApiClient.put("/api/cv/habilidades", habBody, token)
                             }
                             isSaving = false
                             saveMsg  = if (result.success) "✓ Perfil guardado correctamente"
@@ -863,6 +856,92 @@ private fun OptionChipRow(label: String, options: List<Pair<String, String>>, se
 @Composable
 private fun SectionLabel(text: String) {
     Text(text.uppercase(), color = Color.White.copy(alpha = 0.38f), fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.SemiBold)
+}
+
+@Composable
+private fun LocationSection(
+    tokenManager: TokenManager,
+    label: String,
+    buttonGetText: String,
+    buttonUpdateText: String,
+    lat: Double?,
+    lng: Double?,
+    addr: String,
+    onSaved: (Double, Double, String) -> Unit
+) {
+    val context = LocalContext.current
+    val scope   = rememberCoroutineScope()
+    var gettingLoc  by remember { mutableStateOf(false) }
+    var msgLocation by remember { mutableStateOf<String?>(null) }
+
+    suspend fun fetchAndSave() {
+        gettingLoc = true; msgLocation = null
+        val loc = fetchCurrentLocation(context)
+        if (loc != null) {
+            val token = tokenManager.getAccessToken() ?: run { gettingLoc = false; return }
+            val body = JSONObject().apply { put("lat", loc.first); put("lng", loc.second) }
+            val result = ApiClient.put("/api/perfil/ubicacion", body, token)
+            if (result.success && result.data != null) {
+                onSaved(result.data.optDouble("lat"), result.data.optDouble("lng"), result.data.str("direccion"))
+                msgLocation = "✓ Ubicación guardada"
+            } else { msgLocation = "✗ ${result.error ?: "Error al guardar"}" }
+        } else {
+            msgLocation = "No se pudo obtener la ubicación. Activa el GPS."
+        }
+        gettingLoc = false
+    }
+
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        if (perms.values.any { it }) scope.launch { fetchAndSave() }
+        else msgLocation = "Se necesita permiso de ubicación para guardar"
+    }
+
+    SectionLabel(label)
+    if (lat != null && lng != null) {
+        LocationMapView(lat = lat, lng = lng)
+        Spacer(Modifier.height(6.dp))
+        if (addr.isNotBlank()) {
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("📍", fontSize = 14.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(addr, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+    GlassCard(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = !gettingLoc) {
+            val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            if (hasFine || hasCoarse) scope.launch { fetchAndSave() }
+            else permLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        },
+        cornerRadius = 14.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (gettingLoc) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = BrandBlue, strokeWidth = 2.dp)
+            } else {
+                Text("📍", fontSize = 18.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                if (lat != null) buttonUpdateText else buttonGetText,
+                color = if (gettingLoc) TextSecondary else Color.White,
+                fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+    msgLocation?.let { msg ->
+        Text(msg, color = if (msg.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171), fontSize = 12.sp)
+    }
 }
 
 @Composable
