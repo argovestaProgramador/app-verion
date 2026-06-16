@@ -3,6 +3,7 @@ package com.verion.practicas.ui.screens
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -31,7 +33,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.Calendar
 
-private fun JSONObject.str(key: String): String = if (isNull(key)) "" else optString(key, "")
+private fun JSONObject.str(key: String): String =
+    if (isNull(key)) "" else optString(key, "")
 
 private fun tsLabelDet(ts: Long): String {
     if (ts <= 0L) return ""
@@ -73,230 +76,303 @@ fun ConvocatoriaDetalleScreen(
     val estadoColor = when (estado) {
         "ABIERTA" -> Color(0xFF34D399); "PAUSADA" -> Color(0xFFFBBF24); else -> Color(0xFF9CA3AF)
     }
-    val libres  = (conv.optInt("plazas_disponibles", 0) - conv.optInt("plazas_ocupadas", 0)).coerceAtLeast(0)
+    val libres      = (conv.optInt("plazas_disponibles", 0) - conv.optInt("plazas_ocupadas", 0)).coerceAtLeast(0)
+    var libresLocal by remember { mutableIntStateOf(libres) }
     val logoKey = conv.str("logo_key").ifBlank { empresaPerfil?.str("logo_key") ?: "" }
     val sector  = empresaPerfil?.str("sector") ?: ""
     val dir     = empresaPerfil?.str("direccion") ?: ""
     val calif   = empresaPerfil?.optDouble("calificacion_promedio", 0.0) ?: 0.0
+    val titulo  = conv.str("titulo")
+    val fi      = conv.optLong("fecha_inicio", 0L)
+    val ff      = conv.optLong("fecha_fin", 0L)
+    val desc    = conv.str("descripcion")
+    val eDesc   = conv.str("empresa_descripcion").ifBlank { empresaPerfil?.str("descripcion") ?: "" }
 
-    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-        // Top bar
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(painterResource(R.drawable.ic_arrow_back), null, tint = Color.White)
-            }
-            Text("Convocatoria", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Empresa header — tappable
-            GlassCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = empresaId.isNotBlank()) { onVerEmpresa(empresaId) }
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+
+            Box(
+                modifier = Modifier.fillMaxWidth().height(200.dp)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF0A1628), Color(0xFF1A0F3D), Color(0xFF071226))
+                        )
+                    )
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Box(
+                    modifier = Modifier.size(260.dp).offset(x = 140.dp, y = (-50).dp)
+                        .background(BrandIndigo.copy(alpha = 0.06f), CircleShape)
+                )
+                Box(
+                    modifier = Modifier.size(160.dp).offset(x = (-40).dp, y = 90.dp)
+                        .background(BrandBlue.copy(alpha = 0.05f), CircleShape)
+                )
+
+                if (logoKey.isNotBlank()) {
                     Box(
-                        modifier = Modifier.size(52.dp).clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFF1E1040)),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(end = 16.dp, top = 52.dp)
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF1C1040))
+                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (logoKey.isNotBlank()) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data("${ApiClient.BASE_URL}/api/uploads/$logoKey")
-                                    .crossfade(true).build(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp))
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data("${ApiClient.BASE_URL}/api/uploads/$logoKey")
+                                .crossfade(true).build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp))
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(100.dp).align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color(0xFF060312).copy(alpha = 0.95f))
                             )
-                        } else {
-                            Text("🏢", fontSize = 24.sp)
-                        }
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(conv.str("razon_social"), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        if (sector.isNotBlank()) Text(sector, color = BrandBlue, fontSize = 12.sp)
-                        if (dir.isNotBlank()) Text("📍 $dir", color = TextSecondary, fontSize = 11.sp, maxLines = 1)
-                        if (calif > 0.0) Text("★ ${"%.1f".format(calif)}", color = Color(0xFFFBBF24), fontSize = 11.sp)
-                    }
-                    if (empresaId.isNotBlank()) {
-                        Text("›", color = TextSecondary, fontSize = 22.sp, modifier = Modifier.padding(start = 4.dp))
-                    }
-                }
-            }
+                        )
+                )
 
-            if (empresaId.isNotBlank()) {
-                TextButton(
-                    onClick  = { onVerEmpresa(empresaId) },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("Ver perfil completo →", color = BrandBlue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-
-            // Convocatoria detail card
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    modifier = Modifier.align(Alignment.BottomStart)
+                        .padding(start = 20.dp, end = 80.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            conv.str("titulo"),
-                            color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.width(8.dp))
+                    Text(titulo, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black, lineHeight = 28.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50.dp))
                                 .background(estadoColor.copy(alpha = 0.15f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .border(1.dp, estadoColor.copy(alpha = 0.5f), RoundedCornerShape(50.dp))
+                                .padding(horizontal = 10.dp, vertical = 3.dp)
                         ) {
                             Text(estado, color = estadoColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
-                    }
-
-                    Text(
-                        "$libres plaza${if (libres != 1) "s" else ""} disponible${if (libres != 1) "s" else ""}",
-                        color = BrandBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
-                    )
-
-                    val fi = conv.optLong("fecha_inicio", 0L)
-                    val ff = conv.optLong("fecha_fin", 0L)
-                    if (fi > 0L || ff > 0L) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            if (fi > 0L) Column {
-                                Text("Inicio", color = TextSecondary, fontSize = 10.sp)
-                                Text(tsLabelDet(fi), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            if (ff > 0L) Column {
-                                Text("Cierre", color = TextSecondary, fontSize = 10.sp)
-                                Text(tsLabelDet(ff), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(Color(0xFF34D399).copy(alpha = 0.12f))
+                                .border(1.dp, Color(0xFF34D399).copy(alpha = 0.4f), RoundedCornerShape(50.dp))
+                                .padding(horizontal = 10.dp, vertical = 3.dp)
+                        ) {
+                            Text("$libresLocal plaza${if (libresLocal != 1) "s" else ""}", color = Color(0xFF34D399), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
-                    }
-
-                    val desc = conv.str("descripcion")
-                    if (desc.isNotBlank()) {
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                        Text(desc, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, lineHeight = 20.sp)
-                    }
-
-                    val eDesc = conv.str("empresa_descripcion").ifBlank { empresaPerfil?.str("descripcion") ?: "" }
-                    if (eDesc.isNotBlank()) {
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                        Text("Sobre la empresa", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        Text(eDesc, color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, lineHeight = 18.sp)
                     }
                 }
             }
 
-            // Postular section — TECNICO only
-            if (!isGuest && rol == "TECNICO") {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Spacer(Modifier.height(4.dp))
+
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable(enabled = empresaId.isNotBlank()) { onVerEmpresa(empresaId) }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(46.dp).clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF1E1040)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (logoKey.isNotBlank()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data("${ApiClient.BASE_URL}/api/uploads/$logoKey")
+                                        .crossfade(true).build(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp))
+                                )
+                            } else {
+                                Text("🏢", fontSize = 22.sp)
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(conv.str("razon_social"), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            if (sector.isNotBlank()) Text(sector, color = BrandBlue, fontSize = 11.sp)
+                            if (dir.isNotBlank()) Text("📍 $dir", color = TextSecondary, fontSize = 10.sp, maxLines = 1)
+                            if (calif > 0.0) Text("★ ${"%.1f".format(calif)}", color = Color(0xFFFBBF24), fontSize = 10.sp)
+                        }
+                        if (empresaId.isNotBlank()) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Ver perfil", color = BrandBlue, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                Text("›", color = BrandBlue, fontSize = 20.sp)
+                            }
+                        }
+                    }
+                }
+
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Postular", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-
-                        if (!yaPostuladoLocal && isAbierta) {
-                            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
-                                BasicTextField(
-                                    value         = mensaje,
-                                    onValueChange = { mensaje = it },
-                                    textStyle     = TextStyle(color = Color.White, fontSize = 13.sp),
-                                    cursorBrush   = SolidColor(BrandBlue),
-                                    minLines      = 3,
-                                    modifier      = Modifier.fillMaxWidth().padding(12.dp),
-                                    decorationBox = { inner ->
-                                        if (mensaje.isEmpty()) Text(
-                                            "Mensaje opcional para la empresa...",
-                                            color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp
-                                        )
-                                        inner()
-                                    }
-                                )
+                        if (fi > 0L || ff > 0L) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                                if (fi > 0L) Column {
+                                    Text("Inicio", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(tsLabelDet(fi), color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                if (ff > 0L) Column {
+                                    Text("Cierre", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(tsLabelDet(ff), color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                }
                             }
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.07f))
                         }
 
-                        postularMsg?.let {
-                            Text(
-                                it,
-                                color = if (it.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171),
-                                fontSize = 12.sp
-                            )
+                        if (desc.isNotBlank()) {
+                            Text("Descripción", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(desc, color = Color.White.copy(alpha = 0.82f), fontSize = 13.sp, lineHeight = 20.sp)
                         }
 
-                        Button(
-                            onClick = {
-                                if (yaPostuladoLocal || !isAbierta) return@Button
-                                scope.launch {
-                                    postulando = true; postularMsg = null
-                                    val token = tokenManager.getAccessToken()
-                                        ?: run { postularMsg = "✗ Debes iniciar sesión"; postulando = false; return@launch }
-                                    val body = JSONObject().apply {
-                                        if (mensaje.isNotBlank()) put("mensaje", mensaje.trim())
-                                    }
-                                    val r = ApiClient.post("/api/convocatorias/${conv.str("id")}/postulaciones", body, token)
-                                    postulando = false
-                                    if (r.success) {
-                                        yaPostuladoLocal = true
-                                        mensaje = ""
-                                        postularMsg = "✓ Postulación enviada"
-                                        onPostuladoSuccess(conv.str("id"))
-                                    } else {
-                                        postularMsg = "✗ ${r.error ?: "Error al postular"}"
+                        if (eDesc.isNotBlank()) {
+                            if (desc.isNotBlank()) HorizontalDivider(color = Color.White.copy(alpha = 0.07f))
+                            Text("Sobre la empresa", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(eDesc, color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, lineHeight = 18.sp)
+                        }
+                    }
+                }
+
+                if (!isGuest && rol == "TECNICO") {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Postular", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                if (yaPostuladoLocal) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(50.dp))
+                                            .background(Color(0xFF34D399).copy(alpha = 0.12f))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("✓ Postulado", color = Color(0xFF34D399), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                     }
                                 }
-                            },
-                            enabled  = !postulando && !yaPostuladoLocal && isAbierta,
-                            modifier = Modifier.fillMaxWidth().height(46.dp),
-                            shape    = RoundedCornerShape(50.dp),
-                            colors   = ButtonDefaults.buttonColors(
-                                containerColor         = Color.White,
-                                contentColor           = Color(0xFF1A0F3D),
-                                disabledContainerColor = Color.White.copy(alpha = 0.12f),
-                                disabledContentColor   = Color.White.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            if (postulando) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = BrandPurple, strokeWidth = 2.dp)
-                            } else {
+                            }
+
+                            if (!yaPostuladoLocal && isAbierta) {
+                                GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
+                                    BasicTextField(
+                                        value         = mensaje,
+                                        onValueChange = { mensaje = it },
+                                        textStyle     = TextStyle(color = Color.White, fontSize = 13.sp),
+                                        cursorBrush   = SolidColor(BrandBlue),
+                                        minLines      = 3,
+                                        modifier      = Modifier.fillMaxWidth().padding(12.dp),
+                                        decorationBox = { inner ->
+                                            if (mensaje.isEmpty()) Text(
+                                                "Mensaje opcional para la empresa...",
+                                                color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp
+                                            )
+                                            inner()
+                                        }
+                                    )
+                                }
+                            }
+
+                            postularMsg?.let {
                                 Text(
-                                    when {
-                                        yaPostuladoLocal -> "Ya postulado"
-                                        !isAbierta       -> "Convocatoria cerrada"
-                                        else             -> "Postular"
-                                    },
-                                    fontWeight = FontWeight.Bold, fontSize = 14.sp
+                                    it,
+                                    color = if (it.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171),
+                                    fontSize = 12.sp
                                 )
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (yaPostuladoLocal || !isAbierta) return@Button
+                                    scope.launch {
+                                        postulando = true; postularMsg = null
+                                        val token = tokenManager.getAccessToken()
+                                            ?: run { postularMsg = "✗ Debes iniciar sesión"; postulando = false; return@launch }
+                                        val body = JSONObject().apply {
+                                            if (mensaje.isNotBlank()) put("mensaje", mensaje.trim())
+                                        }
+                                        val r = ApiClient.post("/api/convocatorias/${conv.str("id")}/postulaciones", body, token)
+                                        postulando = false
+                                        if (r.success) {
+                                            yaPostuladoLocal = true
+                                            libresLocal = (libresLocal - 1).coerceAtLeast(0)
+                                            mensaje = ""
+                                            postularMsg = "✓ Postulación enviada"
+                                            onPostuladoSuccess(conv.str("id"))
+                                        } else {
+                                            postularMsg = "✗ ${r.error ?: "Error al postular"}"
+                                        }
+                                    }
+                                },
+                                enabled  = !postulando && !yaPostuladoLocal && isAbierta,
+                                modifier = Modifier.fillMaxWidth().height(46.dp),
+                                shape    = RoundedCornerShape(50.dp),
+                                colors   = ButtonDefaults.buttonColors(
+                                    containerColor         = Color.White,
+                                    contentColor           = Color(0xFF1A0F3D),
+                                    disabledContainerColor = Color.White.copy(alpha = 0.12f),
+                                    disabledContentColor   = Color.White.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                if (postulando) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = BrandPurple, strokeWidth = 2.dp)
+                                } else {
+                                    Text(
+                                        when {
+                                            yaPostuladoLocal -> "Ya postulado"
+                                            !isAbierta       -> "Convocatoria cerrada"
+                                            else             -> "Postular ahora"
+                                        },
+                                        fontWeight = FontWeight.Bold, fontSize = 14.sp
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(60.dp))
+            }
+        }
+
+        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 10.dp, top = 4.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_arrow_back),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

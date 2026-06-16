@@ -99,6 +99,21 @@ object ApiClient {
             }
         }
 
+    suspend fun patch(path: String, body: JSONObject, authToken: String? = null): ApiResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val req = Request.Builder()
+                    .url("$BASE_URL$path")
+                    .patch(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                if (authToken != null) req.addHeader("Authorization", "Bearer $authToken")
+                val response = client.newCall(req.build()).execute()
+                val json = JSONObject(response.body?.string() ?: "{}")
+                parseResult(json, response.code == 401)
+            } catch (e: Exception) {
+                ApiResult(false, null, e.message ?: "Error de conexión")
+            }
+        }
+
     suspend fun delete(path: String, authToken: String? = null): ApiResult =
         withContext(Dispatchers.IO) {
             try {

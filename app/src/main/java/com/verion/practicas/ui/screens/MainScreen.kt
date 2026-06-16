@@ -25,15 +25,15 @@ fun MainScreen(
     var showEditProfile       by remember { mutableStateOf(false) }
     var showCVScreen          by remember { mutableStateOf(false) }
     var showNotificaciones    by remember { mutableStateOf(false) }
+    var showSettings          by remember { mutableStateOf(false) }
     val scope           = rememberCoroutineScope()
 
-    // Detail overlay states
     var selectedConvocatoria by remember { mutableStateOf<JSONObject?>(null) }
     var selectedEmpresaId    by remember { mutableStateOf<String?>(null) }
     var selectedTecnicoId    by remember { mutableStateOf<String?>(null) }
     var postuladas           by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // BackHandlers — registered in priority order (last = highest)
+    if (showSettings)                BackHandler { showSettings = false }
     if (showEditProfile)             BackHandler { showEditProfile = false }
     if (showCVScreen)                BackHandler { showCVScreen = false }
     if (showNotificaciones)          BackHandler { showNotificaciones = false }
@@ -50,14 +50,13 @@ fun MainScreen(
         }
     }
 
-    val anyOverlay = showEditProfile || showCVScreen || showNotificaciones ||
+    val anyOverlay = showEditProfile || showCVScreen || showNotificaciones || showSettings ||
             selectedConvocatoria != null || selectedEmpresaId != null || selectedTecnicoId != null
 
     Box(modifier = Modifier.fillMaxSize()) {
         AnimatedBackground()
         Box(modifier = Modifier.fillMaxSize().background(Color(0xFF000000).copy(alpha = 0.26f)))
 
-        // Main tabs content
         AnimatedVisibility(
             visible = !anyOverlay,
             enter   = slideInHorizontally { -it } + fadeIn(),
@@ -72,7 +71,8 @@ fun MainScreen(
                                 isGuest              = isGuest,
                                 postuladas           = postuladas,
                                 onConvocatoriaClick  = { selectedConvocatoria = it },
-                                onTecnicoClick       = { selectedTecnicoId = it }
+                                onTecnicoClick       = { selectedTecnicoId = it },
+                                onEmpresaClick       = { selectedEmpresaId = it }
                              )
                         1 -> when (rol) {
                                 "TECNICO" -> PostulacionesScreen(
@@ -90,7 +90,10 @@ fun MainScreen(
                                                 onLogout         = onLogout,
                                                 onEditProfile    = { showEditProfile = true },
                                                 onCVRequest      = { showCVScreen = true },
-                                                onNotificaciones = { showNotificaciones = true }
+                                                onNotificaciones = { showNotificaciones = true },
+                                                onTecnicoClick   = { selectedTecnicoId = it },
+                                                onEmpresaClick   = { selectedEmpresaId = it },
+                                                onSettings       = { showSettings = true }
                                              )
                              }
                         else -> ProfileScreen(
@@ -100,7 +103,10 @@ fun MainScreen(
                                     onLogout         = onLogout,
                                     onEditProfile    = { showEditProfile = true },
                                     onCVRequest      = { showCVScreen = true },
-                                    onNotificaciones = { showNotificaciones = true }
+                                    onNotificaciones = { showNotificaciones = true },
+                                    onTecnicoClick   = { selectedTecnicoId = it },
+                                    onEmpresaClick   = { selectedEmpresaId = it },
+                                    onSettings       = { showSettings = true }
                                 )
                     }
                 }
@@ -112,7 +118,6 @@ fun MainScreen(
             }
         }
 
-        // EditProfile overlay
         AnimatedVisibility(
             visible = showEditProfile,
             enter   = slideInHorizontally { it } + fadeIn(),
@@ -121,7 +126,6 @@ fun MainScreen(
             EditProfileScreen(tokenManager = tokenManager, onBack = { showEditProfile = false })
         }
 
-        // CV overlay
         AnimatedVisibility(
             visible = showCVScreen,
             enter   = slideInHorizontally { it } + fadeIn(),
@@ -130,7 +134,6 @@ fun MainScreen(
             CVScreen(tokenManager = tokenManager, onBack = { showCVScreen = false })
         }
 
-        // Notificaciones overlay
         AnimatedVisibility(
             visible = showNotificaciones,
             enter   = slideInHorizontally { it } + fadeIn(),
@@ -139,9 +142,25 @@ fun MainScreen(
             NotificacionesScreen(tokenManager = tokenManager, onBack = { showNotificaciones = false })
         }
 
-        // Convocatoria detail overlay
         AnimatedVisibility(
-            visible = selectedConvocatoria != null,
+            visible = showSettings,
+            enter   = slideInHorizontally { it } + fadeIn(),
+            exit    = slideOutHorizontally { it } + fadeOut()
+        ) {
+            SettingsScreen(
+            onBack           = { showSettings = false },
+            tokenManager     = tokenManager,
+            onAccountDeleted = {
+                scope.launch {
+                    tokenManager.clear()
+                    onLoginRequest()
+                }
+            }
+        )
+        }
+
+        AnimatedVisibility(
+            visible = selectedConvocatoria != null && selectedEmpresaId == null,
             enter   = slideInHorizontally { it } + fadeIn(),
             exit    = slideOutHorizontally { it } + fadeOut()
         ) {
@@ -159,9 +178,8 @@ fun MainScreen(
             }
         }
 
-        // Técnico public profile overlay
         AnimatedVisibility(
-            visible = selectedTecnicoId != null,
+            visible = selectedTecnicoId != null && selectedEmpresaId == null,
             enter   = slideInHorizontally { it } + fadeIn(),
             exit    = slideOutHorizontally { it } + fadeOut()
         ) {
@@ -175,7 +193,6 @@ fun MainScreen(
             }
         }
 
-        // Empresa public profile overlay — renders on top of convocatoria detail
         AnimatedVisibility(
             visible = selectedEmpresaId != null,
             enter   = slideInHorizontally { it } + fadeIn(),

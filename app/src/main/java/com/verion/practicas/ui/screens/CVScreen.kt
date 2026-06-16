@@ -1,5 +1,8 @@
 package com.verion.practicas.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -110,7 +114,32 @@ fun CVScreen(
     var msgCert      by remember { mutableStateOf<String?>(null) }
 
     var pendingDelete by remember { mutableStateOf<(() -> Unit)?>(null) }
-    val scope = rememberCoroutineScope()
+
+    var pdfKey       by remember { mutableStateOf("") }
+    var uploadingPdf by remember { mutableStateOf(false) }
+    var pdfMsg       by remember { mutableStateOf<String?>(null) }
+
+    val scope   = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            uploadingPdf = true; pdfMsg = null
+            val token = tokenManager.getAccessToken()
+                ?: run { pdfMsg = "✗ Sesión expirada"; uploadingPdf = false; return@launch }
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes == null) { pdfMsg = "✗ No se pudo leer el archivo"; uploadingPdf = false; return@launch }
+            val result = ApiClient.upload("/api/uploads/cv-pdf", bytes, "application/pdf", "cv.pdf", token)
+            uploadingPdf = false
+            if (result.success) {
+                pdfKey = result.data?.str("key") ?: pdfKey
+                pdfMsg = "✓ CV subido correctamente"
+            } else {
+                pdfMsg = "✗ ${result.error ?: "Error al subir"}"
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         var token = tokenManager.getAccessToken()
@@ -127,6 +156,7 @@ fun CVScreen(
                 experiencias = result.data.optJSONArray("experiencias").toObjectList()
                 educacion    = result.data.optJSONArray("educacion").toObjectList()
                 certificados = result.data.optJSONArray("certificados").toObjectList()
+                pdfKey       = result.data.optJSONObject("cv")?.str("pdf_key") ?: ""
             }
         }
         isLoading = false
@@ -227,6 +257,55 @@ fun CVScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+
+            item {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("CV en PDF", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (pdfKey.isNotBlank()) "Archivo cargado" else "Sin archivo",
+                                    color = if (pdfKey.isNotBlank()) Color(0xFF34D399) else TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Button(
+                                onClick = { pdfLauncher.launch("application/pdf") },
+                                enabled = !uploadingPdf,
+                                shape = RoundedCornerShape(50.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                            ) {
+                                if (uploadingPdf) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White, strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text(
+                                        if (pdfKey.isNotBlank()) "Reemplazar" else "Subir PDF",
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                        }
+                        pdfMsg?.let {
+                            Text(
+                                it,
+                                color = if (it.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
 
             item {
                 CVSectionHeader(

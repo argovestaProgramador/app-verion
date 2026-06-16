@@ -123,7 +123,6 @@ fun ConvocatoriasScreen(
 
     val categoriaNombre = categorias.find { it.str("id") == fCategoriaId }?.str("nombre") ?: ""
 
-    // ── Diálogo categoría ──────────────────────────────
     if (showCatDialog) {
         AlertDialog(
             onDismissRequest = { showCatDialog = false },
@@ -151,7 +150,6 @@ fun ConvocatoriasScreen(
         )
     }
 
-    // ── Diálogo eliminar ───────────────────────────────
     pendingDelete?.let { action ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
@@ -231,7 +229,6 @@ fun ConvocatoriasScreen(
                 }
             }
 
-            // ── Formulario ──────────────────────────────
             if (showForm) {
                 item {
                     GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 16.dp) {
@@ -368,7 +365,6 @@ fun ConvocatoriasScreen(
 
                         Spacer(Modifier.height(12.dp))
 
-                        // ── Acciones ─────────────────────
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ActionChip("Editar") { openForm(conv) }
                             if (estado == "ABIERTA") {
@@ -414,7 +410,6 @@ fun ConvocatoriasScreen(
                             }
                         }
 
-                        // ── Postulaciones ────────────────
                         if (isExpanded) {
                             Spacer(Modifier.height(12.dp))
                             HorizontalDivider(thickness = 0.5.dp, color = Color.White.copy(alpha = 0.12f))

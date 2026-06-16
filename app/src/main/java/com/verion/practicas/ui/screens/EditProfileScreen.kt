@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -120,9 +121,11 @@ fun EditProfileScreen(
     var todasHabilidades       by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
     var habilidadesSeleccionadas by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    var isSaving  by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(true) }
-    var saveMsg   by remember { mutableStateOf<String?>(null) }
+    var isSaving       by remember { mutableStateOf(false) }
+    var isLoading      by remember { mutableStateOf(true) }
+    var saveMsg        by remember { mutableStateOf<String?>(null) }
+    var showPhotoMenu  by remember { mutableStateOf(false) }
+    var cameraUri      by remember { mutableStateOf<Uri?>(null) }
 
     val fotoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -178,6 +181,39 @@ fun EditProfileScreen(
         }
     }
 
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (!success) return@rememberLauncherForActivityResult
+        val uri = cameraUri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            if (rol == "TECNICO") { subiendoFoto = true; msgFoto = null } else { subiendoLogo = true; msgLogo = null }
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (bytes != null) {
+                val token = tokenManager.getAccessToken()
+                if (token != null) {
+                    if (rol == "TECNICO") {
+                        val r = ApiClient.upload("/api/uploads/foto", bytes, "image/jpeg", "foto.jpg", token)
+                        if (r.success) { fotoKey = r.data?.optString("key") ?: fotoKey; selectedFotoUri = uri; msgFoto = "✓ Foto actualizada" }
+                        else { msgFoto = "✗ ${r.error ?: "Error al subir foto"}"; selectedFotoUri = null }
+                    } else {
+                        val r = ApiClient.upload("/api/uploads/logo", bytes, "image/jpeg", "logo.jpg", token)
+                        if (r.success) { logoKey = r.data?.optString("key") ?: logoKey; selectedLogoUri = uri; msgLogo = "✓ Logo actualizado" }
+                        else { msgLogo = "✗ ${r.error ?: "Error al subir logo"}"; selectedLogoUri = null }
+                    }
+                }
+            }
+            if (rol == "TECNICO") subiendoFoto = false else subiendoLogo = false
+        }
+    }
+
+    val camPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val file = File(context.cacheDir, "cam_${System.currentTimeMillis()}.jpg")
+            val uri  = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            cameraUri = uri
+            cameraLauncher.launch(uri)
+        }
+    }
+
     LaunchedEffect(Unit) {
         var token = tokenManager.getAccessToken()
         if (token != null) {
@@ -226,17 +262,27 @@ fun EditProfileScreen(
                 }
             }
         }
-        val cr = ApiClient.get("/api/categorias")
-        if (cr.success) categorias = cr.dataArray.toObjectList()
-        val hr = ApiClient.get("/api/habilidades")
-        if (hr.success) todasHabilidades = hr.dataArray.toObjectList()
+        val cachedCat = StaticCache.getCategorias(context)
+        if (cachedCat != null) {
+            categorias = (0 until cachedCat.length()).mapNotNull { runCatching { cachedCat.getJSONObject(it) }.getOrNull() }
+        } else {
+            val cr = ApiClient.get("/api/categorias")
+            if (cr.success && cr.dataArray != null) { categorias = cr.dataArray.toObjectList(); StaticCache.saveCategorias(context, cr.dataArray) }
+        }
+        val cachedHab = StaticCache.getHabilidades(context)
+        if (cachedHab != null) {
+            todasHabilidades = (0 until cachedHab.length()).mapNotNull { runCatching { cachedHab.getJSONObject(it) }.getOrNull() }
+        } else {
+            val hr = ApiClient.get("/api/habilidades")
+            if (hr.success && hr.dataArray != null) { todasHabilidades = hr.dataArray.toObjectList(); StaticCache.saveHabilidades(context, hr.dataArray) }
+        }
         if (rol == "TECNICO" && token != null) {
             val cvr = ApiClient.get("/api/cv/mio", token)
             if (cvr.success) {
                 val arr = cvr.data?.optJSONArray("habilidades")
                 if (arr != null) {
                     habilidadesSeleccionadas = (0 until arr.length())
-                        .mapNotNull { arr.optJSONObject(it)?.optString("habilidad_id") }
+                        .mapNotNull { arr.optJSONObject(it)?.optString("id") }  // fix: API devuelve "id" no "habilidad_id"
                         .filter { it.isNotBlank() }
                         .toSet()
                 }
@@ -425,30 +471,74 @@ fun EditProfileScreen(
                         val fotoMsg = if (rol == "TECNICO") msgFoto else msgLogo
                         if (fotoMsg != null) {
                             Text(fotoMsg, color = if (fotoMsg.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171), fontSize = 11.sp)
-                        } else {
                             TextButton(
                                 onClick = {
-                                    if (rol == "TECNICO") fotoPickerLauncher.launch("image/*")
-                                    else logoPickerLauncher.launch("image/*")
-                                },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    if (rol == "TECNICO") "Cambiar foto de perfil" else "Cambiar logo",
-                                    color = BrandBlue, fontSize = 12.sp
-                                )
-                            }
-                        }
-                        if (fotoMsg != null) {
-                            TextButton(
-                                onClick = {
-                                    if (rol == "TECNICO") { fotoPickerLauncher.launch("image/*"); msgFoto = null }
-                                    else { logoPickerLauncher.launch("image/*"); msgLogo = null }
+                                    if (rol == "TECNICO") { msgFoto = null } else { msgLogo = null }
+                                    showPhotoMenu = true
                                 },
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                             ) {
                                 Text("Cambiar de nuevo", color = BrandBlue, fontSize = 11.sp)
                             }
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(
+                                    onClick = {
+                                        if (rol == "TECNICO") fotoPickerLauncher.launch("image/*")
+                                        else logoPickerLauncher.launch("image/*")
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("🖼 Galería", color = BrandBlue, fontSize = 12.sp)
+                                }
+                                TextButton(
+                                    onClick = {
+                                        val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                                        if (hasPerm) {
+                                            val file = File(context.cacheDir, "cam_${System.currentTimeMillis()}.jpg")
+                                            val uri  = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                            cameraUri = uri
+                                            cameraLauncher.launch(uri)
+                                        } else {
+                                            camPermLauncher.launch(Manifest.permission.CAMERA)
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("📷 Cámara", color = BrandBlue, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                        if (showPhotoMenu) {
+                            AlertDialog(
+                                onDismissRequest = { showPhotoMenu = false },
+                                title = { Text(if (rol == "TECNICO") "Cambiar foto" else "Cambiar logo", style = MaterialTheme.typography.titleSmall) },
+                                text = {
+                                    Column {
+                                        TextButton(onClick = {
+                                            showPhotoMenu = false
+                                            if (rol == "TECNICO") fotoPickerLauncher.launch("image/*")
+                                            else logoPickerLauncher.launch("image/*")
+                                        }) { Text("🖼 Elegir de galería", color = BrandBlue) }
+                                        TextButton(onClick = {
+                                            showPhotoMenu = false
+                                            val hasPerm = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                                            if (hasPerm) {
+                                                val file = File(context.cacheDir, "cam_${System.currentTimeMillis()}.jpg")
+                                                val uri  = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                                cameraUri = uri
+                                                cameraLauncher.launch(uri)
+                                            } else {
+                                                camPermLauncher.launch(Manifest.permission.CAMERA)
+                                            }
+                                        }) { Text("📷 Tomar foto", color = BrandBlue) }
+                                    }
+                                },
+                                confirmButton = {},
+                                dismissButton = {
+                                    TextButton(onClick = { showPhotoMenu = false }) { Text("Cancelar") }
+                                }
+                            )
                         }
                     }
                 }
@@ -498,46 +588,60 @@ fun EditProfileScreen(
                     GlassField(xUrl, { xUrl = it }, "X / Twitter (https://x.com/...)", keyboardType = KeyboardType.Uri)
                     GlassField(whatsapp, { whatsapp = it }, "WhatsApp (+51 999 999 999)", keyboardType = KeyboardType.Phone)
 
-                    // ── Habilidades ───────────────────────
                     if (todasHabilidades.isNotEmpty()) {
-                        SectionLabel("Mis habilidades")
+                        SectionLabel("Mis habilidades (${habilidadesSeleccionadas.size} seleccionadas)")
                         GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
-                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    "Toca para seleccionar / deseleccionar",
-                                    color = TextSecondary, fontSize = 11.sp
-                                )
-                                todasHabilidades.chunked(3).forEach { rowItems ->
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        rowItems.forEach { hab ->
-                                            val habId = hab.str("id")
-                                            val selected = habilidadesSeleccionadas.contains(habId)
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(50.dp))
-                                                    .background(
-                                                        if (selected) BrandBlue.copy(alpha = 0.25f)
-                                                        else Color.White.copy(alpha = 0.06f)
+                            Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                var habSearch by remember { mutableStateOf("") }
+                                GlassCard(modifier = Modifier.fillMaxWidth().height(42.dp), cornerRadius = 10.dp) {
+                                    Row(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(painterResource(R.drawable.ic_nav_search), null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        BasicTextField(
+                                            value = habSearch,
+                                            onValueChange = { habSearch = it },
+                                            textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
+                                            cursorBrush = SolidColor(Color.White),
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f),
+                                            decorationBox = { inner ->
+                                                if (habSearch.isEmpty()) Text("Buscar habilidad...", color = Color.White.copy(alpha = 0.3f), fontSize = 13.sp)
+                                                inner()
+                                            }
+                                        )
+                                    }
+                                }
+                                val filtered = if (habSearch.isBlank()) todasHabilidades
+                                               else todasHabilidades.filter { it.str("nombre").contains(habSearch, ignoreCase = true) }
+                                val sorted = filtered.sortedWith(compareByDescending { habilidadesSeleccionadas.contains(it.str("id")) })
+                                if (filtered.isEmpty()) {
+                                    Text("Sin resultados para \"$habSearch\"", color = TextSecondary, fontSize = 11.sp)
+                                } else {
+                                    sorted.chunked(3).forEach { rowItems ->
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            rowItems.forEach { hab ->
+                                                val habId    = hab.str("id")
+                                                val selected = habilidadesSeleccionadas.contains(habId)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(50.dp))
+                                                        .background(if (selected) BrandBlue.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f))
+                                                        .border(1.dp, if (selected) BrandBlue else Color.White.copy(alpha = 0.15f), RoundedCornerShape(50.dp))
+                                                        .clickable {
+                                                            habilidadesSeleccionadas = if (selected)
+                                                                habilidadesSeleccionadas - habId
+                                                            else
+                                                                habilidadesSeleccionadas + habId
+                                                        }
+                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(
+                                                        hab.str("nombre"),
+                                                        color = if (selected) BrandBlue else Color.White.copy(alpha = 0.55f),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                                                     )
-                                                    .border(
-                                                        1.dp,
-                                                        if (selected) BrandBlue else Color.White.copy(alpha = 0.15f),
-                                                        RoundedCornerShape(50.dp)
-                                                    )
-                                                    .clickable {
-                                                        habilidadesSeleccionadas = if (selected)
-                                                            habilidadesSeleccionadas - habId
-                                                        else
-                                                            habilidadesSeleccionadas + habId
-                                                    }
-                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                                            ) {
-                                                Text(
-                                                    hab.str("nombre"),
-                                                    color = if (selected) BrandBlue else Color.White.copy(alpha = 0.55f),
-                                                    fontSize = 11.sp,
-                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-                                                )
+                                                }
                                             }
                                         }
                                     }
@@ -546,7 +650,6 @@ fun EditProfileScreen(
                         }
                     }
 
-                    // ── Proyectos ─────────────────────────
                     Spacer(Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),

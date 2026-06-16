@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -20,7 +21,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -85,244 +85,325 @@ fun EmpresaPublicaScreen(
             calificaciones = r2.dataArray.toEmpresaList()
             resenas        = r3.dataArray.toEmpresaList()
         }
+        val token = tokenManager.getAccessToken()
+        if (token != null) {
+            val favResult = ApiClient.get("/api/favoritos", token)
+            if (favResult.success) {
+                val arr = favResult.dataArray
+                if (arr != null) {
+                    guardado = (0 until arr.length()).any { i ->
+                        val f = arr.optJSONObject(i) ?: return@any false
+                        f.optString("objetivo_id") == empresaId && f.optString("tipo") == "EMPRESA_GUARDADA"
+                    }
+                }
+            }
+        }
         isLoading = false
     }
 
-    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(painterResource(R.drawable.ic_arrow_back), null, tint = Color.White)
-            }
-            Text("Perfil empresa", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = BrandBlue, strokeWidth = 2.dp)
             }
-            return@Column
-        }
+        } else {
+            val logoKey       = perfil?.strE("logo_key") ?: ""
+            val razonSocial   = perfil?.strE("razon_social") ?: "Empresa"
+            val sector        = perfil?.strE("sector") ?: ""
+            val descripcion   = perfil?.strE("descripcion") ?: ""
+            val ruc           = perfil?.strE("ruc") ?: ""
+            val direccion     = perfil?.strE("direccion") ?: ""
+            val sitioWeb      = perfil?.strE("sitio_web") ?: ""
+            val emailContacto = perfil?.strE("email_contacto") ?: ""
+            val telefono      = perfil?.strE("telefono_contacto") ?: ""
+            val linkedin      = perfil?.strE("linkedin_url") ?: ""
+            val instagram     = perfil?.strE("instagram_url") ?: ""
+            val facebook      = perfil?.strE("facebook_url") ?: ""
+            val whatsapp      = perfil?.strE("whatsapp") ?: ""
+            val calif         = perfil?.optDouble("calificacion_promedio", 0.0) ?: 0.0
+            val totalCalif    = perfil?.optInt("total_calificaciones", 0) ?: 0
+            val totalContrat  = perfil?.optInt("total_contrataciones", 0) ?: 0
+            val initial       = razonSocial.firstOrNull()?.uppercaseChar()?.toString() ?: "E"
 
-        val logoKey       = perfil?.strE("logo_key") ?: ""
-        val razonSocial   = perfil?.strE("razon_social") ?: "Empresa"
-        val sector        = perfil?.strE("sector") ?: ""
-        val descripcion   = perfil?.strE("descripcion") ?: ""
-        val ruc           = perfil?.strE("ruc") ?: ""
-        val direccion     = perfil?.strE("direccion") ?: ""
-        val sitioWeb      = perfil?.strE("sitio_web") ?: ""
-        val emailContacto = perfil?.strE("email_contacto") ?: ""
-        val telefono      = perfil?.strE("telefono_contacto") ?: ""
-        val linkedin      = perfil?.strE("linkedin_url") ?: ""
-        val instagram     = perfil?.strE("instagram_url") ?: ""
-        val facebook      = perfil?.strE("facebook_url") ?: ""
-        val whatsapp      = perfil?.strE("whatsapp") ?: ""
-        val calif         = perfil?.optDouble("calificacion_promedio", 0.0) ?: 0.0
-        val totalCalif    = perfil?.optInt("total_calificaciones", 0) ?: 0
-        val totalContrat  = perfil?.optInt("total_contrataciones", 0) ?: 0
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Header card
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(240.dp)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF0D1B4E), Color(0xFF1A0F3D), Color(0xFF0A1628))
+                            )
+                        )
                 ) {
                     Box(
-                        modifier = Modifier.size(80.dp).clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFF1E1040)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (logoKey.isNotBlank()) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data("${ApiClient.BASE_URL}/api/uploads/$logoKey")
-                                    .crossfade(true).build(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
-                            )
-                        } else {
-                            Text("🏢", fontSize = 36.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(razonSocial, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    if (sector.isNotBlank()) Text(sector, color = BrandBlue, fontSize = 13.sp)
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        if (calif > 0.0) EStatBox("★ ${"%.1f".format(calif)}", "$totalCalif calific.")
-                        EStatBox("$totalContrat", "contrat.")
-                        EStatBox("$favoritosCount", "guardados")
-                    }
-                }
-            }
-
-            // Info card
-            if (descripcion.isNotBlank() || ruc.isNotBlank() || direccion.isNotBlank() || emailContacto.isNotBlank()) {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (descripcion.isNotBlank()) {
-                            Text(descripcion, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, lineHeight = 19.sp)
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 4.dp))
-                        }
-                        if (ruc.isNotBlank())           EInfoRow("🪪", "RUC $ruc")
-                        if (direccion.isNotBlank())     EInfoRow("📍", direccion)
-                        if (emailContacto.isNotBlank()) EInfoRow("✉️", emailContacto)
-                        if (telefono.isNotBlank())      EInfoRow("📞", telefono)
-                        if (sitioWeb.isNotBlank()) {
-                            TextButton(
-                                onClick = { runCatching { uriHandler.openUri(sitioWeb) } },
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text("🌐 $sitioWeb", color = BrandBlue, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Redes sociales
-            if (linkedin.isNotBlank() || instagram.isNotBlank() || facebook.isNotBlank() || whatsapp.isNotBlank()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (linkedin.isNotBlank())  ESocialChip("LinkedIn")  { runCatching { uriHandler.openUri(linkedin) } }
-                    if (instagram.isNotBlank()) ESocialChip("Instagram") { runCatching { uriHandler.openUri(instagram) } }
-                    if (facebook.isNotBlank())  ESocialChip("Facebook")  { runCatching { uriHandler.openUri(facebook) } }
-                    if (whatsapp.isNotBlank())  ESocialChip("WhatsApp")  { runCatching { uriHandler.openUri("https://wa.me/${whatsapp.filter { it.isDigit() }}") } }
-                }
-            }
-
-            // TECNICO: guardar + reseña
-            if (rol == "TECNICO") {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            guardando = true; favMsg = null
-                            val token = tokenManager.getAccessToken()
-                                ?: run { favMsg = "Inicia sesión para guardar"; guardando = false; return@launch }
-                            val body = JSONObject().apply { put("objetivo_id", empresaId); put("tipo", "EMPRESA_GUARDADA") }
-                            val r = ApiClient.post("/api/favoritos", body, token)
-                            guardando = false
-                            when {
-                                r.success -> { guardado = true; favMsg = "✓ Guardado en favoritos" }
-                                r.error?.contains("Ya guardaste") == true -> { guardado = true; favMsg = "Ya está en favoritos" }
-                                else -> favMsg = "✗ ${r.error ?: "Error"}"
-                            }
-                        }
-                    },
-                    enabled  = !guardando && !guardado,
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
-                    shape    = RoundedCornerShape(50.dp),
-                    colors   = ButtonDefaults.buttonColors(
-                        containerColor         = if (guardado) Color(0xFF34D399).copy(alpha = 0.15f) else BrandBlue.copy(alpha = 0.18f),
-                        contentColor           = if (guardado) Color(0xFF34D399) else BrandBlue,
-                        disabledContainerColor = Color.White.copy(alpha = 0.06f),
-                        disabledContentColor   = Color.White.copy(alpha = 0.4f)
+                        modifier = Modifier.size(220.dp).offset(x = 160.dp, y = (-40).dp)
+                            .background(BrandBlue.copy(alpha = 0.07f), CircleShape)
                     )
-                ) {
-                    Text(if (guardado) "★ Guardado" else "☆ Guardar empresa", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                }
-                favMsg?.let { Text(it, color = if (it.startsWith("✓") || it.startsWith("Ya")) Color(0xFF34D399) else Color(0xFFF87171), fontSize = 12.sp) }
 
-                if (!yaReseno) {
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text("Escribir reseña", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            EStarSelector(selected = resenaPuntaje, onSelect = { resenaPuntaje = it })
-                            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
-                                BasicTextField(
-                                    value         = resenaText,
-                                    onValueChange = { resenaText = it },
-                                    textStyle     = TextStyle(color = Color.White, fontSize = 13.sp),
-                                    cursorBrush   = SolidColor(BrandBlue),
-                                    minLines      = 3,
-                                    modifier      = Modifier.fillMaxWidth().padding(12.dp),
-                                    decorationBox = { inner ->
-                                        if (resenaText.isEmpty()) Text(
-                                            "Tu experiencia con esta empresa...",
-                                            color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp
-                                        )
-                                        inner()
-                                    }
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(120.dp).align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color(0xFF060312).copy(alpha = 0.9f))
                                 )
-                            }
-                            resenaMsg?.let {
-                                Text(it, color = if (it.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171), fontSize = 12.sp)
-                            }
-                            Button(
-                                onClick = {
-                                    if (resenaText.isBlank()) { resenaMsg = "✗ Escribe tu reseña"; return@Button }
-                                    scope.launch {
-                                        enviandoResena = true; resenaMsg = null
-                                        val token = tokenManager.getAccessToken()
-                                            ?: run { resenaMsg = "✗ Inicia sesión"; enviandoResena = false; return@launch }
-                                        val body = JSONObject().apply {
-                                            put("destinatario_id", empresaId)
-                                            put("contenido", resenaText.trim())
-                                            if (resenaPuntaje > 0) put("puntaje", resenaPuntaje)
-                                        }
-                                        val r = ApiClient.post("/api/calificaciones/resenas", body, token)
-                                        enviandoResena = false
-                                        if (r.success) { yaReseno = true; resenaMsg = "✓ Reseña publicada" }
-                                        else resenaMsg = "✗ ${r.error ?: "Error"}"
-                                    }
-                                },
-                                enabled  = !enviandoResena,
-                                modifier = Modifier.fillMaxWidth().height(42.dp),
-                                shape    = RoundedCornerShape(50.dp),
-                                colors   = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF1A0F3D))
-                            ) {
-                                if (enviandoResena) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = BrandPurple, strokeWidth = 2.dp)
-                                else Text("Publicar reseña", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            )
+                    )
+
+                    Column(
+                        modifier = Modifier.align(Alignment.Center).padding(top = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(76.dp).clip(RoundedCornerShape(18.dp))
+                                .background(Color(0xFF1C1040))
+                                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(18.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (logoKey.isNotBlank()) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data("${ApiClient.BASE_URL}/api/uploads/$logoKey")
+                                        .crossfade(true).build(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp))
+                                )
+                            } else {
+                                Text("🏢", fontSize = 36.sp)
                             }
                         }
                     }
-                } else {
-                    resenaMsg?.let { Text(it, color = Color(0xFF34D399), fontSize = 12.sp) }
+
+                    Column(
+                        modifier = Modifier.align(Alignment.BottomStart)
+                            .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(razonSocial, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                        if (sector.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50.dp))
+                                    .border(1.dp, BrandBlue.copy(alpha = 0.6f), RoundedCornerShape(50.dp))
+                                    .background(BrandBlue.copy(alpha = 0.15f))
+                                    .padding(horizontal = 10.dp, vertical = 3.dp)
+                            ) {
+                                Text(sector, color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    EPubStatItem(
+                        value = if (calif > 0.0) "★ ${"%.1f".format(calif)}" else "—",
+                        label = if (totalCalif > 0) "$totalCalif calific." else "Sin calific."
+                    )
+                    Box(modifier = Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.12f)))
+                    EPubStatItem(value = "$totalContrat", label = "Contratos")
+                    Box(modifier = Modifier.width(1.dp).height(34.dp).background(Color.White.copy(alpha = 0.12f)))
+                    EPubStatItem(value = "$favoritosCount", label = "Guardados")
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.07f))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Spacer(Modifier.height(4.dp))
+
+                    if (descripcion.isNotBlank() || ruc.isNotBlank() || direccion.isNotBlank() || emailContacto.isNotBlank()) {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (descripcion.isNotBlank()) {
+                                    Text(descripcion, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp, lineHeight = 20.sp)
+                                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 4.dp))
+                                }
+                                if (ruc.isNotBlank())           EPubInfoRow("🪪", "RUC $ruc")
+                                if (direccion.isNotBlank())     EPubInfoRow("📍", direccion)
+                                if (emailContacto.isNotBlank()) EPubInfoRow("✉️", emailContacto)
+                                if (telefono.isNotBlank())      EPubInfoRow("📞", telefono)
+                                if (sitioWeb.isNotBlank()) {
+                                    TextButton(
+                                        onClick = { runCatching { uriHandler.openUri(sitioWeb) } },
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text("🌐 $sitioWeb", color = BrandBlue, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (linkedin.isNotBlank() || instagram.isNotBlank() || facebook.isNotBlank() || whatsapp.isNotBlank()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.horizontalScroll(rememberScrollState())
+                        ) {
+                            if (linkedin.isNotBlank())  EPubSocialChip("LinkedIn")  { runCatching { uriHandler.openUri(linkedin) } }
+                            if (instagram.isNotBlank()) EPubSocialChip("Instagram") { runCatching { uriHandler.openUri(instagram) } }
+                            if (facebook.isNotBlank())  EPubSocialChip("Facebook")  { runCatching { uriHandler.openUri(facebook) } }
+                            if (whatsapp.isNotBlank())  EPubSocialChip("WhatsApp")  { runCatching { uriHandler.openUri("https://wa.me/${whatsapp.filter { it.isDigit() }}") } }
+                        }
+                    }
+
+                    if (rol == "TECNICO") {
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    guardando = true; favMsg = null
+                                    val token = tokenManager.getAccessToken()
+                                        ?: run { favMsg = "Inicia sesión para guardar"; guardando = false; return@launch }
+                                    val body = JSONObject().apply { put("objetivo_id", empresaId); put("tipo", "EMPRESA_GUARDADA") }
+                                    val r = ApiClient.post("/api/favoritos", body, token)
+                                    guardando = false
+                                    when {
+                                        r.success -> { guardado = true; favMsg = "✓ Guardado en favoritos" }
+                                        r.error?.contains("Ya guardaste") == true -> { guardado = true; favMsg = "Ya está en favoritos" }
+                                        else -> favMsg = "✗ ${r.error ?: "Error"}"
+                                    }
+                                }
+                            },
+                            enabled  = !guardando && !guardado,
+                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                            shape    = RoundedCornerShape(50.dp),
+                            colors   = ButtonDefaults.buttonColors(
+                                containerColor         = if (guardado) Color(0xFF34D399).copy(alpha = 0.15f) else BrandBlue.copy(alpha = 0.18f),
+                                contentColor           = if (guardado) Color(0xFF34D399) else BrandBlue,
+                                disabledContainerColor = Color.White.copy(alpha = 0.06f),
+                                disabledContentColor   = Color.White.copy(alpha = 0.4f)
+                            )
+                        ) {
+                            Text(if (guardado) "★ Guardado" else "☆ Guardar empresa", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+                        favMsg?.let {
+                            Text(it, color = if (it.startsWith("✓") || it.startsWith("Ya")) Color(0xFF34D399) else Color(0xFFF87171), fontSize = 12.sp)
+                        }
+
+                        if (!yaReseno) {
+                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text("Escribir reseña", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    EStarSelector(selected = resenaPuntaje, onSelect = { resenaPuntaje = it })
+                                    GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 12.dp) {
+                                        BasicTextField(
+                                            value         = resenaText,
+                                            onValueChange = { resenaText = it },
+                                            textStyle     = TextStyle(color = Color.White, fontSize = 13.sp),
+                                            cursorBrush   = SolidColor(BrandBlue),
+                                            minLines      = 3,
+                                            modifier      = Modifier.fillMaxWidth().padding(12.dp),
+                                            decorationBox = { inner ->
+                                                if (resenaText.isEmpty()) Text(
+                                                    "Tu experiencia con esta empresa...",
+                                                    color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp
+                                                )
+                                                inner()
+                                            }
+                                        )
+                                    }
+                                    resenaMsg?.let {
+                                        Text(it, color = if (it.startsWith("✓")) Color(0xFF34D399) else Color(0xFFF87171), fontSize = 12.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            if (resenaText.isBlank()) { resenaMsg = "✗ Escribe tu reseña"; return@Button }
+                                            scope.launch {
+                                                enviandoResena = true; resenaMsg = null
+                                                val token = tokenManager.getAccessToken()
+                                                    ?: run { resenaMsg = "✗ Inicia sesión"; enviandoResena = false; return@launch }
+                                                val body = JSONObject().apply {
+                                                    put("destinatario_id", empresaId)
+                                                    put("contenido", resenaText.trim())
+                                                    if (resenaPuntaje > 0) put("puntaje", resenaPuntaje)
+                                                }
+                                                val r = ApiClient.post("/api/calificaciones/resenas", body, token)
+                                                enviandoResena = false
+                                                if (r.success) { yaReseno = true; resenaMsg = "✓ Reseña publicada" }
+                                                else resenaMsg = "✗ ${r.error ?: "Error"}"
+                                            }
+                                        },
+                                        enabled  = !enviandoResena,
+                                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                                        shape    = RoundedCornerShape(50.dp),
+                                        colors   = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF1A0F3D))
+                                    ) {
+                                        if (enviandoResena) CircularProgressIndicator(modifier = Modifier.size(16.dp), color = BrandPurple, strokeWidth = 2.dp)
+                                        else Text("Publicar reseña", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        } else {
+                            resenaMsg?.let { Text(it, color = Color(0xFF34D399), fontSize = 12.sp) }
+                        }
+                    }
+
+                    if (resenas.isNotEmpty()) {
+                        EPubSectionLabel("RESEÑAS")
+                        resenas.forEach { r -> EResenaCard(r, context) }
+                    }
+
+                    if (calificaciones.isNotEmpty()) {
+                        EPubSectionLabel("CALIFICACIONES")
+                        calificaciones.take(10).forEach { c -> ECalifCard(c) }
+                    }
+
+                    Spacer(Modifier.height(80.dp))
                 }
             }
+        }
 
-            // Reseñas section
-            if (resenas.isNotEmpty()) {
-                Text("RESEÑAS", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                resenas.forEach { r -> EResenaCard(r) }
+        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 10.dp, top = 4.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.45f))
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_arrow_back),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
             }
-
-            // Calificaciones section
-            if (calificaciones.isNotEmpty()) {
-                Text("CALIFICACIONES", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                calificaciones.take(10).forEach { c -> ECalifCard(c) }
-            }
-
-            Spacer(Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-private fun EStatBox(value: String, label: String) {
+private fun EPubStatItem(value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(2.dp))
         Text(label, color = TextSecondary, fontSize = 10.sp)
     }
 }
 
 @Composable
-private fun EInfoRow(icon: String, text: String) {
+private fun EPubSectionLabel(text: String) {
+    Text(text, color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+}
+
+@Composable
+private fun EPubInfoRow(icon: String, text: String) {
     Row(verticalAlignment = Alignment.Top) {
         Text(icon, fontSize = 13.sp, modifier = Modifier.padding(top = 1.dp, end = 6.dp))
         Text(text, color = TextSecondary, fontSize = 12.sp)
@@ -330,7 +411,7 @@ private fun EInfoRow(icon: String, text: String) {
 }
 
 @Composable
-private fun ESocialChip(label: String, onClick: () -> Unit) {
+private fun EPubSocialChip(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50.dp))
@@ -348,7 +429,8 @@ private fun EStarSelector(selected: Int, onSelect: (Int) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         (1..5).forEach { i ->
             Icon(
-                painterResource(R.drawable.ic_star), null,
+                painter = painterResource(R.drawable.ic_star),
+                contentDescription = null,
                 tint     = if (i <= selected) Color(0xFFFBBF24) else Color.White.copy(alpha = 0.25f),
                 modifier = Modifier.size(30.dp).clickable { onSelect(i) }
             )
@@ -357,8 +439,7 @@ private fun EStarSelector(selected: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun EResenaCard(r: JSONObject) {
-    val context     = LocalContext.current
+private fun EResenaCard(r: JSONObject, context: android.content.Context) {
     val puntaje     = r.optInt("puntaje", 0)
     val autorNombre = r.strE("autor_nombre")
     val autorFoto   = r.strE("autor_foto_key")
@@ -393,7 +474,7 @@ private fun EResenaCard(r: JSONObject) {
                 if (puntaje > 0) {
                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         repeat(puntaje) {
-                            Icon(painterResource(R.drawable.ic_star), null, tint = Color(0xFFFBBF24), modifier = Modifier.size(13.dp))
+                            Icon(painterResource(R.drawable.ic_star), contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(13.dp))
                         }
                     }
                 }
@@ -411,7 +492,7 @@ private fun EResenaCard(r: JSONObject) {
 
 @Composable
 private fun ECalifCard(c: JSONObject) {
-    val puntaje   = c.optDouble("puntaje", 0.0)
+    val puntaje    = c.optDouble("puntaje", 0.0)
     val comentario = c.strE("comentario")
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
